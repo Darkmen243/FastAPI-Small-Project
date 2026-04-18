@@ -1,16 +1,30 @@
-from sqlalchemy import create_engine
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from fastapi import Depends
 
-DATABASE_URL = "sqlite:///.shop.db"
+DATABASE_URL = "sqlite+aiosqlite:///.shop.db"
+# PostgreSQL async:
+# DATABASE_URL = "postgresql+asyncpg://user:pass@localhost/dbname"
 
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False,autoflush=False,bind=engine)
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=True,
+    future=True
+    )
+AsyncSessionLocal = async_sessionmaker(
+    engine,
+    class_=AsyncSession,
+    expire_on_commit=False
+)
 Base = declarative_base()
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+async def get_db():
+    async with  AsyncSessionLocal() as session:
+        try:
+            yield session
+            await session.commit()
+        except:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
